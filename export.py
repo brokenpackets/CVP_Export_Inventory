@@ -4,7 +4,7 @@ import json
 
 username = 'admin'
 password = 'Arista'
-server1 = 'https://192.168.255.50'
+server1 = 'https://192.168.255.51'
 csvfilename = 'inventory.csv'
 
 connect_timeout = 10
@@ -24,6 +24,10 @@ def login(url_prefix, username, password):
     if response.json()['sessionId']:
         return response.json()['sessionId']
 
+def old_get_inventory(url_prefix):
+    response = session.get(url_prefix+'/cvpservice/inventory/getInventory.do?startIndex=0&endIndex=0')
+    return response.json()
+
 def get_inventory(url_prefix):
     response = session.get(url_prefix+'/cvpservice/inventory/devices')
     return response.json()
@@ -31,11 +35,20 @@ def get_inventory(url_prefix):
 device_list = []
 print '###### Logging into Server 1'
 login(server1, username, password)
-inventory = get_inventory(server1)
+try:
+    inventory = get_inventory(server1)
+    if inventory:
+        apiversion = 'new'
+except:
+    apiversion = 'old'
+    inventory = old_get_inventory(server1)['netElementList']
 with open(csvfilename, 'w') as f:
   f.write('hostname,modelName,systemMacAddress,version,serialNumber,ipAddress\n')
   for switch in inventory:
-      hostname = switch['hostname']
+      if apiversion == 'new':
+          hostname = switch['hostname']
+      else:
+          hostname = switch['fqdn']
       print hostname
       f.write(hostname+',')
       modelName = switch['modelName']
@@ -50,4 +63,5 @@ with open(csvfilename, 'w') as f:
       f.write(ipAddress+'\n')
       device_list.append({hostname: {'model' : modelName, 'mac': systemMacAddress, 'version': version, 'mgmtIP': ipAddress}})
 f.close()
+
 print '##### Complete'
